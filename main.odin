@@ -45,10 +45,13 @@ Mount_Flags :: bit_set[Mount_Flag; c.ulong]
 
 foreign {
     mount :: proc(source: cstring, target: cstring, filesystemtype: cstring, mountflags: Mount_Flags, data: rawptr) -> c.int ---
+
+    gnu_dev_makedev :: proc(major, minor: c.uint) -> posix.dev_t ---
 }
 
 
-INIT_COMMAND := []cstring{ "/sbin/agetty", "--noclear", "38400", "tty1", "linux", nil }
+// INIT_COMMAND := []cstring{ "/sbin/agetty", "--noclear", "38400", "tty1", "linux", nil }
+INIT_COMMAND := []cstring{ "/bin/sh", nil }
 
 sigmap := []struct{ sig: posix.Signal, handler: #type proc() }{
     { .SIGUSR1, proc() { spawn({ "/bin/rc.shutdown", "poweroff", nil }) } },
@@ -130,8 +133,59 @@ try_mount :: proc(mounts: []string, from: cstring, to: cstring, type: cstring, f
     }
 }
 
+// make_ttys :: proc() {
+//     if posix.mknod("/dev/tty", { .IRUSR, .IWUSR, .IRGRP, .IROTH, .IWOTH, .IFCHR }, gnu_dev_makedev(5, 0)) == .FAIL {
+//         posix.perror("mknod")
+//     }
+//     if posix.mknod("/dev/tty1", { .IRUSR, .IWUSR, .IRGRP, .IROTH, .IWOTH, .IFCHR }, gnu_dev_makedev(5, 0)) == .FAIL {
+//         posix.perror("mknod")
+//     }
+// }
+
+
 main :: proc() {
-    fmt.println("Say hi to deinit!")
+    try_mount({}, "proc", "/proc", "proc")
+
+    mounts, mounts_ok := read_mounts()
+    if !mounts_ok {
+        // TODO(robin): prober logging
+    }
+
+    try_mount(mounts[:], "dev", "/dev", "devtmpfs", data = "mode=0755")
+    try_mount(mounts[:], "sys", "/sys", "sysfs")
+    // make_ttys()
+
+    onefd := posix.open("/dev/console", {} + posix.O_TTY_INIT, {})
+    if onefd != -1 {
+        posix.dup2(onefd, posix.FD(0))
+    }
+
+    twofd := posix.open("/dev/console", { .WRONLY } + posix.O_TTY_INIT, {})
+    if twofd != -1 {
+        posix.dup2(twofd, posix.FD(1))
+        posix.dup2(twofd, posix.FD(2))
+    }
+
+    if onefd > posix.FD(2) do posix.close(onefd)
+    if twofd > posix.FD(2) do posix.close(twofd)
+
+    fmt.println("Mounts:", mounts[:])
+
+
+    console, os_err := os.open("/dev/console")
+    if os_err != nil {
+        console, os_err = os.open("/dev/tty0")
+        if os_err != nil {
+            console, os_err = os.open("/dev/ttyS0")
+        }
+    }
+
+    fmt.println(os_err)
+    console_writer := os.to_stream(console)
+
+    fmt.wprintln(console_writer, "Say hi to deinit!")
+
+    os.flush(console)
 
     if posix.getpid() != 1 {
         os.exit(1)
@@ -144,18 +198,6 @@ main :: proc() {
 
     posix.sigfillset(&set)
     posix.sigprocmask(.BLOCK, &set, nil)
-
-    try_mount({}, "proc", "/proc", "proc")
-
-    mounts, mounts_ok := read_mounts()
-    if !mounts_ok {
-        // TODO(robin): prober logging
-    }
-
-    fmt.println("Mounts:", mounts[:])
-
-    try_mount(mounts[:], "dev", "/dev", "devtmpfs", data = "mode=0755")
-    try_mount(mounts[:], "sys", "/sys", "sysfs")
     //
     // spawn({ "/bin/mount", "-t", "devtmpfs", "-o", "remount,mode=0755", "dev", "/dev", nil })
     // spawn({ "/bin/mount", "-t", "sysfs", "sys", "/sys", nil })
