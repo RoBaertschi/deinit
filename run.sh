@@ -6,5 +6,5 @@ odin build . -out:./buildroot-config/rootfs/sbin/init
 fi
 
 pushd ./buildroot-2025.08/output/images/
-qemu-system-x86_64 -kernel bzImage -drive file=rootfs.ext2,format=raw -append "root=/dev/sda rw loglevel=15 console=tty0 console=tty1 console=ttyS0" --enable-kvm -cpu host -m 1G -serial stdio
+qemu-system-x86_64 -kernel bzImage -drive file=rootfs.ext2,format=raw -append "root=/dev/sda rw loglevel=15" --enable-kvm -cpu host -m 1G -serial stdio
 popd

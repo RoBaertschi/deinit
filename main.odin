@@ -50,8 +50,8 @@ foreign {
 }
 
 
-// INIT_COMMAND := []cstring{ "/sbin/agetty", "--noclear", "38400", "tty1", "linux", nil }
-INIT_COMMAND := []cstring{ "/bin/sh", nil }
+INIT_COMMAND := []cstring{ "/sbin/agetty", "--noclear", "38400", "tty1", "linux", nil }
+// INIT_COMMAND := []cstring{ "/bin/sh", nil }
 
 sigmap := []struct{ sig: posix.Signal, handler: #type proc() }{
     { .SIGUSR1, proc() { spawn({ "/bin/rc.shutdown", "poweroff", nil }) } },
